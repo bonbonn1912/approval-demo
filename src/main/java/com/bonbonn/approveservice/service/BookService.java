@@ -1,5 +1,6 @@
 package com.bonbonn.approveservice.service;
 
+import com.bonbonn.approveservice.api.BookController.CreateBookRequest;
 import com.bonbonn.approveservice.data.ApproveType;
 import com.bonbonn.approveservice.data.BookEntity;
 import com.bonbonn.approveservice.data.DTO.BookDTO;
@@ -27,19 +28,35 @@ public class BookService extends AbstractApprovableService<BookEntity, BookRepos
   }
 
   @Transactional
-  public BookDTO createBook(String title, int pages, double price) {
-    BookEntity bookEntity = new BookEntity();
-    bookEntity.setApproveType(ApproveType.CREATE);
-    bookEntity.setTitle(title);
-    bookEntity.setPages(pages);
-    bookEntity.setPrice(price);
+  public BookDTO createBook(CreateBookRequest request) {
+    BookEntity bookEntity = this.mapper.fromRequest(request);
     addAuditDetails(bookEntity);
     this.bookRepository.save(bookEntity);
     return this.mapper.toModel(bookEntity);
   }
 
   @Transactional
-  public BookDTO updateBook(Long id, String title, int pages, double price) {
+  public BookDTO deleteBook(Long id) {
+    BookEntity existing = bookRepository.findById(id)
+        .orElseThrow(() -> new EntityNotFoundException("Book not found with id: " + id));
+
+    if(existing.getApprovedBy() == null) {
+      throw new IllegalStateException("Book not approved yet. cannot update.");
+    }
+    if(existing.getDraft() != null) {
+      throw new IllegalStateException("Book has a draft. cannot delete.");
+    }
+
+    BookEntity draft = this.mapper.copy(existing, ApproveType.DELETE);
+    draft.setApproveType(ApproveType.DELETE);
+    addAuditDetails(draft);
+    setDraft(existing, draft);
+    this.bookRepository.save(existing);
+    return this.mapper.toModel(draft);
+  }
+
+  @Transactional
+  public BookDTO updateBook(Long id, CreateBookRequest request) {
     BookEntity existing = bookRepository.findById(id)
         .orElseThrow(() -> new EntityNotFoundException("Book not found with id: " + id));
 
@@ -47,13 +64,11 @@ public class BookService extends AbstractApprovableService<BookEntity, BookRepos
       throw new IllegalStateException("Book not approved yet. cannot update.");
     }
 
-    BookEntity draft = this.mapper.copy(existing);
-    draft.setTitle(title);
-    draft.setPages(pages);
-    draft.setPrice(price);
+    BookEntity draft = this.mapper.createUpdateDraft(existing, request);
+    addAuditDetails(draft);
     setDraft(existing, draft);
     this.bookRepository.save(existing);
-    return this.mapper.toModel(existing);
+    return this.mapper.toModel(draft);
   }
 
   public List<BookDTO> getAllBooks(boolean includeDraft) {

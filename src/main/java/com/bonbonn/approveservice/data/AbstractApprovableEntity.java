@@ -10,6 +10,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.PostUpdate;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
@@ -48,8 +53,9 @@ public abstract class AbstractApprovableEntity {
   private Long draftTarget;
 
   public void clearPendingDrafts() {
-    this.draft = null;
-    this.draftTarget = null;
-    this.approveType = null;
+    draft = null;
+    draftTarget = null;
+    approveType = null;
   }
+
 }

@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +26,7 @@ public class BookController {
 
   @PostMapping
   public ResponseEntity<BookDTO> createBook(@RequestBody CreateBookRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(this.bookService.createBook(request.getTitle(), request.getPages(), request.getPrice()));
+    return ResponseEntity.status(HttpStatus.CREATED).body(this.bookService.createBook(request));
   }
 
   @GetMapping
@@ -36,7 +37,12 @@ public class BookController {
 
   @PatchMapping("/{bookId}")
   public ResponseEntity<BookDTO> updateBook(@PathVariable Long bookId, @RequestBody CreateBookRequest bookEntity){
-    return ResponseEntity.ok(this.bookService.updateBook(bookId, bookEntity.getTitle(), bookEntity.getPages(), bookEntity.getPrice()));
+    return ResponseEntity.ok(this.bookService.updateBook(bookId, bookEntity));
+  }
+
+  @DeleteMapping("/{bookId}")
+  public ResponseEntity<BookDTO> deleteBook(@PathVariable Long bookId){
+    return ResponseEntity.ok(this.bookService.deleteBook(bookId));
   }
 
   @PostMapping("/{bookId}/approve")
@@ -52,7 +58,7 @@ public class BookController {
   }
 
   @Getter
-  static class CreateBookRequest {
+  public static class CreateBookRequest {
     private String title;
     private int pages;
     private double price;

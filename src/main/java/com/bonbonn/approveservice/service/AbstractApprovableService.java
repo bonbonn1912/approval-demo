@@ -28,14 +28,91 @@ public abstract class AbstractApprovableService<
   @Transactional
   public void approve(Long id) {
     E entity = repository.findById(id).orElseThrow();
+    ApproveType approveType = entity.getApproveType();
+
+    if (approveType == ApproveType.CREATE) {
+      approveCreate(entity);
+      return;
+    }
+
+    E draft = fromJson(entity.getDraft());
+    if (draft == null || draft.getApproveType() == null) {
+      throw new IllegalStateException("Draft or draft approveType is null for id " + id);
+    }
+
+    switch (draft.getApproveType()) {
+      case UPDATE -> approveUpdate(entity, draft);
+      case DELETE -> approveDelete(entity);
+      default ->
+          throw new IllegalStateException(
+              "Unsupported draft approveType: " + draft.getApproveType());
+    }
+  }
+
+  @Transactional
+  public void reject(Long id) {
+    E entity = repository.findById(id).orElseThrow();
 
     if (entity.getApproveType() == ApproveType.CREATE) {
-      approveCreate(id);
-    } else if (entity.getDraft() != null) {
-      approveUpdate(id);
-    } else {
-      throw new IllegalStateException("No approval action required for entity id=" + id);
+      repository.delete(entity);
+      return;
     }
+
+    if (entity.getDraft() != null) {
+      E draft = fromJson(entity.getDraft());
+      if (draft != null && draft.getApproveType() == ApproveType.DELETE) {
+        entity.clearPendingDrafts();
+        repository.save(entity);
+        return;
+      }
+    }
+
+    ensureNotAlreadyApproved(entity);
+    repository.save(entity);
+  }
+
+  public List<E> getOpenDrafts(List<E> entities) {
+    if (entities == null || entities.isEmpty()) {
+      return List.of();
+    }
+
+    List<E> drafts =
+        entities.stream()
+            .map(E::getDraft)
+            .filter(Objects::nonNull)
+            .map(this::fromJson)
+            .filter(Objects::nonNull)
+            .toList();
+
+    return Stream.concat(drafts.stream(), entities.stream()).toList();
+  }
+
+  protected abstract TypeReference<E> getTypeReference();
+
+  private void approveCreate(E entity) {
+    String currentUser = getCurrentUser();
+    ensureDifferentUser(entity, currentUser);
+
+    entity.setApprovedBy(currentUser);
+    entity.clearPendingDrafts();
+    repository.save(entity);
+  }
+
+  private void approveUpdate(E original, E draft) {
+    String currentUser = getCurrentUser();
+    ensureDifferentUser(draft, currentUser);
+
+    draft.setApprovedBy(currentUser);
+    draft.clearPendingDrafts();
+
+    repository.delete(original);
+    repository.save(draft);
+  }
+
+  private void approveDelete(E entity) {
+    String currentUser = getCurrentUser();
+    ensureDifferentUser(entity, currentUser);
+    repository.delete(entity);
   }
 
   protected void addAuditDetails(E entity) {
@@ -43,38 +120,9 @@ public abstract class AbstractApprovableService<
     entity.setCreatedAt(LocalDateTime.now());
   }
 
-  private void approveCreate(Long id) {
-    E entity = repository.findById(id).orElseThrow();
-    String currentUser = getCurrentUser();
-
-    ensureDifferentUser(entity, currentUser);
-    entity.setApproveType(null);
-    repository.save(entity);
-  }
-
-  protected abstract TypeReference<E> getTypeReference();
-
-  private void approveUpdate(Long id) {
-    E entity = repository.findById(id).orElseThrow();
-    E newEntity = fromJson(entity.getDraft());
-    String currentUser = getCurrentUser();
-
-    ensureDifferentUser(newEntity, currentUser);
-    newEntity.clearPendingDrafts();
-    newEntity.setApprovedBy(currentUser);
-    repository.delete(entity);
-    repository.save(newEntity);
-  }
-
-
-  @Transactional
-  public void reject(Long id) {
-    E entity = repository.findById(id).orElseThrow();
-    if (entity.getApprovedBy() != null) {
-      throw new IllegalStateException(entity.getClass().getSimpleName() + " already approved");
-    }
-    entity.clearPendingDrafts();
-    repository.save(entity);
+  protected void setDraft(E entity, E draft) {
+    addAuditDetails(draft);
+    entity.setDraft(toJson(draft));
   }
 
   protected String getCurrentUser() {
@@ -82,31 +130,32 @@ public abstract class AbstractApprovableService<
     return auth.getName();
   }
 
-  protected void setDraft(E entity, E draft) {
-    addAuditDetails(draft);
-    entity.setDraft(toJson(draft));
+  private void ensureDifferentUser(E entity, String currentUser) {
+    String createdBy = entity.getCreatedBy();
+    if (createdBy == null) {
+      return;
+    }
+    if (createdBy.equalsIgnoreCase(currentUser)) {
+      throw new IllegalStateException(
+          "Action not allowed: creator '"
+              + currentUser
+              + "' cannot approve or reject entity.");
+    }
+  }
+
+  private void ensureNotAlreadyApproved(E entity) {
+    if (entity.getApprovedBy() != null) {
+      throw new IllegalStateException(
+          entity.getClass().getSimpleName() + " already approved");
+    }
   }
 
   private String toJson(E entity) {
-    try{
-      return this.objectMapper.writeValueAsString(entity);
+    try {
+      return objectMapper.writeValueAsString(entity);
     } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
+      throw new IllegalStateException("Could not serialize entity to JSON", e);
     }
-  }
-
-  public List<E> getOpenDrafts(List<E> entities) {
-    if (entities == null || entities.isEmpty()) {
-      return List.of();
-    }
-    List<E> drafts = entities.stream()
-        .map(E::getDraft)
-        .filter(Objects::nonNull)
-        .map(this::fromJson)
-        .toList();
-    return Stream.of(drafts, entities)
-        .flatMap(List::stream)
-        .toList();
   }
 
   private E fromJson(String json) {
@@ -114,21 +163,9 @@ public abstract class AbstractApprovableService<
       return null;
     }
     try {
-      return this.objectMapper.readValue(json, getTypeReference());
+      return objectMapper.readValue(json, getTypeReference());
     } catch (JsonProcessingException e) {
-      throw new IllegalStateException(
-          "Could not deserialize JSON", e);
-    }
-  }
-
-
-  private void ensureDifferentUser(E entity, String currentUser) {
-    if (entity.getCreatedBy() == null) {
-      return;
-    }
-    if (entity.getCreatedBy().equalsIgnoreCase(currentUser)) {
-      throw new IllegalStateException(
-          "Action not allowed: creator '" + currentUser + "' cannot approve or reject entity.");
+      throw new IllegalStateException("Could not deserialize JSON", e);
     }
   }
 }
