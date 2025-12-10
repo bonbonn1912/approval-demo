@@ -4,6 +4,8 @@ import com.bonbonn.approveservice.base.Constants;
 import com.bonbonn.approveservice.data.ApproveType;
 import com.bonbonn.approveservice.data.MovieEntity;
 import com.bonbonn.approveservice.repository.MovieRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,8 +14,8 @@ public class MovieService extends AbstractApprovableService<MovieEntity, MovieRe
 
   private final MovieRepository movieRepository;
 
-  protected MovieService(MovieRepository repository, MovieRepository movieRepository) {
-    super(repository);
+  protected MovieService(MovieRepository repository, MovieRepository movieRepository, ObjectMapper objectMapper) {
+    super(repository,  objectMapper);
     this.movieRepository = movieRepository;
   }
 
@@ -26,5 +28,10 @@ public class MovieService extends AbstractApprovableService<MovieEntity, MovieRe
     movieEntity.setPrice(price);
     this.movieRepository.save(movieEntity);
     return movieEntity;
+  }
+
+  @Override
+  protected TypeReference<MovieEntity> getTypeReference() {
+    return new TypeReference<MovieEntity>() {};
   }
 }

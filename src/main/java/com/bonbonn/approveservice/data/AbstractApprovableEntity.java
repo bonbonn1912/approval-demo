@@ -1,11 +1,18 @@
 package com.bonbonn.approveservice.data;
 
 import com.bonbonn.approveservice.ApprovalListener;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
+import jakarta.persistence.MappedSuperclass;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -23,7 +30,6 @@ public abstract class AbstractApprovableEntity {
   @Column(name = "CREATED_AT", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
-  @CreatedBy
   @Column(name = "CREATED_BY", updatable = false)
   private String createdBy;
 
@@ -34,6 +40,16 @@ public abstract class AbstractApprovableEntity {
   @Enumerated(EnumType.STRING)
   private ApproveType approveType;
 
-  @Column(name = "PREDECESSOR_ID")
-  private Long predecessor;
+  @Column(name = "DRAFT")
+  @Lob
+  private String draft;
+
+  @Column(name = "DRAFT_TARGET")
+  private Long draftTarget;
+
+  public void clearPendingDrafts() {
+    this.draft = null;
+    this.draftTarget = null;
+    this.approveType = null;
+  }
 }

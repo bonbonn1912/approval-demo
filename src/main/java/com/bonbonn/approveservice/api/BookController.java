@@ -1,7 +1,6 @@
 package com.bonbonn.approveservice.api;
 
-import com.bonbonn.approveservice.data.BookEntity;
-import com.bonbonn.approveservice.repository.BookRepository;
+import com.bonbonn.approveservice.data.DTO.BookDTO;
 import com.bonbonn.approveservice.service.BookService;
 import java.util.List;
 import lombok.Getter;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,20 +22,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookController {
 
   private final BookService bookService;
-  private final BookRepository bookRepository;
 
   @PostMapping
-  public ResponseEntity<BookEntity> createBook(@RequestBody CreateBookRequest request) {
+  public ResponseEntity<BookDTO> createBook(@RequestBody CreateBookRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED).body(this.bookService.createBook(request.getTitle(), request.getPages(), request.getPrice()));
   }
 
   @GetMapping
-  public ResponseEntity<List<BookEntity>> getAllApprovedBook(){
-    return ResponseEntity.ok(this.bookRepository.findAllByApprovedByIsNotNull());
+  public ResponseEntity<List<BookDTO>> getAllBooks(@RequestParam("includeDraft") boolean includeDraft){
+    System.out.println("includeDraft: " + includeDraft);
+    return ResponseEntity.ok(this.bookService.getAllBooks(includeDraft));
   }
 
   @PatchMapping("/{bookId}")
-  public ResponseEntity<BookEntity> updateBook(@PathVariable Long bookId, @RequestBody CreateBookRequest bookEntity){
+  public ResponseEntity<BookDTO> updateBook(@PathVariable Long bookId, @RequestBody CreateBookRequest bookEntity){
     return ResponseEntity.ok(this.bookService.updateBook(bookId, bookEntity.getTitle(), bookEntity.getPages(), bookEntity.getPrice()));
   }
 

@@ -12,7 +12,7 @@ import lombok.Setter;
 @Setter
 public class BookEntity extends AbstractApprovableEntity {
 
-  @Column(name = "TITLE", nullable = false)
+  @Column(name = "TITLE", nullable = false, unique = true)
   private String title;
 
   @Column(name = "PAGES")
